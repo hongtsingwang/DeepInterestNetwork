@@ -155,7 +155,7 @@ class Model(object):
         self.score_i = tf.reshape(self.score_i, [-1, 1])
         self.score_j = tf.reshape(self.score_j, [-1, 1])
         self.p_and_n = tf.concat([self.score_i, self.score_j], axis=-1)
-        print self.p_and_n.get_shape().as_list()
+        print(self.p_and_n.get_shape().as_list())
 
         # Step variable
         self.global_step = tf.Variable(0, trainable=False, name="global_step")
@@ -210,7 +210,7 @@ class Model(object):
 
     def test(self, sess, uid, hist_i, sl):
         return sess.run(
-            self.logits_all, feed_dict={self.u: uid, self.hist_i: hist_i, self.sl: sl,}
+            self.logits_all, feed_dict={self.u: uid, self.hist_i: hist_i, self.sl: sl}
         )
 
     def save(self, sess, path):
@@ -227,4 +227,3 @@ def extract_axis_1(data, ind):
     indices = tf.stack([batch_range, ind], axis=1)
     res = tf.gather_nd(data, indices)
     return res
-
