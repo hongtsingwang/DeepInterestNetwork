@@ -29,11 +29,11 @@ def dice(_x, axis=-1, epsilon=0.000000001, name=''):
   return alphas * (1.0 - x_p) * _x + x_p * _x
 
 def parametric_relu(_x):
-  with tf.variable_scope(name_or_scope='', reuse=tf.AUTO_REUSE):
-    alphas = tf.get_variable('alpha', _x.get_shape()[-1],
-                         initializer=tf.constant_initializer(0.0),
-                         dtype=tf.float32)
-  pos = tf.nn.relu(_x)
-  neg = alphas * (_x - abs(_x)) * 0.5
+    with tf.variable_scope(name_or_scope='', reuse=tf.AUTO_REUSE):
+      alphas = tf.get_variable('alpha', _x.get_shape()[-1],
+                          initializer=tf.constant_initializer(0.0),
+                          dtype=tf.float32)
+    pos = tf.nn.relu(_x)
+    neg = alphas * (_x - abs(_x)) * 0.5
 
-  return pos + neg
+    return pos + neg

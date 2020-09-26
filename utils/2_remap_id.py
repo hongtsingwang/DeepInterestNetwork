@@ -4,21 +4,36 @@ import numpy as np
 
 random.seed(1234)
 
+# reviews_df只保留 用户ID， asin, 时间戳3项
 with open('../raw_data/reviews.pkl', 'rb') as f:
-  reviews_df = pickle.load(f)
-  reviews_df = reviews_df[['reviewerID', 'asin', 'unixReviewTime']]
+    reviews_df = pickle.load(f)
+    reviews_df = reviews_df[['reviewerID', 'asin', 'unixReviewTime']]
+
+# 将meta文件映射
 with open('../raw_data/meta.pkl', 'rb') as f:
-  meta_df = pickle.load(f)
-  meta_df = meta_df[['asin', 'categories']]
-  meta_df['categories'] = meta_df['categories'].map(lambda x: x[-1][-1])
+    meta_df = pickle.load(f)
+    meta_df = meta_df[['asin', 'categories']]
+    # 一个商品有多个category， 取最后一个， 也就是分类最细的那一个
+    meta_df['categories'] = meta_df['categories'].map(lambda x: x[-1][-1])
 
 
 def build_map(df, col_name):
-  key = sorted(df[col_name].unique().tolist())
-  m = dict(zip(key, range(len(key))))
-  df[col_name] = df[col_name].map(lambda x: m[x])
-  return m, key
+    """[summary]
 
+    Args:
+        df ([df]): [dataframe]
+        col_name ([string]): [列明]
+
+    Returns:
+        [df]: [该列经过编码后的结果]
+    """
+    key = sorted(df[col_name].unique().tolist())
+    m = dict(zip(key, range(len(key))))
+    df[col_name] = df[col_name].map(lambda x: m[x])
+    return m, key
+
+
+# asin amazon自己的商品代号
 asin_map, asin_key = build_map(meta_df, 'asin')
 cate_map, cate_key = build_map(meta_df, 'categories')
 revi_map, revi_key = build_map(reviews_df, 'reviewerID')
@@ -40,8 +55,8 @@ cate_list = np.array(cate_list, dtype=np.int32)
 
 
 with open('../raw_data/remap.pkl', 'wb') as f:
-  pickle.dump(reviews_df, f, pickle.HIGHEST_PROTOCOL) # uid, iid
-  pickle.dump(cate_list, f, pickle.HIGHEST_PROTOCOL) # cid of iid line
-  pickle.dump((user_count, item_count, cate_count, example_count),
-              f, pickle.HIGHEST_PROTOCOL)
-  pickle.dump((asin_key, cate_key, revi_key), f, pickle.HIGHEST_PROTOCOL)
+    pickle.dump(reviews_df, f, pickle.HIGHEST_PROTOCOL)  # uid, iid
+    pickle.dump(cate_list, f, pickle.HIGHEST_PROTOCOL)  # cid of iid line
+    pickle.dump((user_count, item_count, cate_count, example_count),
+                f, pickle.HIGHEST_PROTOCOL)
+    pickle.dump((asin_key, cate_key, revi_key), f, pickle.HIGHEST_PROTOCOL)

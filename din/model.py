@@ -184,88 +184,96 @@ class Model(object):
   
 
   def save(self, sess, path):
-    saver = tf.train.Saver()
-    saver.save(sess, save_path=path)
+    """[summary]
+
+    Args:
+        sess ([type]): [description]
+        path ([type]): [description]
+    """    
+      saver = tf.train.Saver()
+      saver.save(sess, save_path=path)
 
   def restore(self, sess, path):
     saver = tf.train.Saver()
     saver.restore(sess, save_path=path)
 
 def extract_axis_1(data, ind):
-  batch_range = tf.range(tf.shape(data)[0])
-  indices = tf.stack([batch_range, ind], axis=1)
-  res = tf.gather_nd(data, indices)
-  return res
+    batch_range = tf.range(tf.shape(data)[0])
+    indices = tf.stack([batch_range, ind], axis=1)
+    res = tf.gather_nd(data, indices)
+    return res
+
 
 def attention(queries, keys, keys_length):
-  '''
-    queries:     [B, H]
-    keys:        [B, T, H]
-    keys_length: [B]
-  '''
-  queries_hidden_units = queries.get_shape().as_list()[-1]
-  queries = tf.tile(queries, [1, tf.shape(keys)[1]])
-  queries = tf.reshape(queries, [-1, tf.shape(keys)[1], queries_hidden_units])
-  din_all = tf.concat([queries, keys, queries-keys, queries*keys], axis=-1)
-  d_layer_1_all = tf.layers.dense(din_all, 80, activation=tf.nn.sigmoid, name='f1_att', reuse=tf.AUTO_REUSE)
-  d_layer_2_all = tf.layers.dense(d_layer_1_all, 40, activation=tf.nn.sigmoid, name='f2_att', reuse=tf.AUTO_REUSE)
-  d_layer_3_all = tf.layers.dense(d_layer_2_all, 1, activation=None, name='f3_att', reuse=tf.AUTO_REUSE)
-  d_layer_3_all = tf.reshape(d_layer_3_all, [-1, 1, tf.shape(keys)[1]])
-  outputs = d_layer_3_all 
-  # Mask
-  key_masks = tf.sequence_mask(keys_length, tf.shape(keys)[1])   # [B, T]
-  key_masks = tf.expand_dims(key_masks, 1) # [B, 1, T]
-  paddings = tf.ones_like(outputs) * (-2 ** 32 + 1)
-  outputs = tf.where(key_masks, outputs, paddings)  # [B, 1, T]
+    '''
+      queries:     [B, H]
+      keys:        [B, T, H]
+      keys_length: [B]
+    '''
+    queries_hidden_units = queries.get_shape().as_list()[-1]
+    queries = tf.tile(queries, [1, tf.shape(keys)[1]])
+    queries = tf.reshape(queries, [-1, tf.shape(keys)[1], queries_hidden_units])
+    din_all = tf.concat([queries, keys, queries-keys, queries*keys], axis=-1)
+    d_layer_1_all = tf.layers.dense(din_all, 80, activation=tf.nn.sigmoid, name='f1_att', reuse=tf.AUTO_REUSE)
+    d_layer_2_all = tf.layers.dense(d_layer_1_all, 40, activation=tf.nn.sigmoid, name='f2_att', reuse=tf.AUTO_REUSE)
+    d_layer_3_all = tf.layers.dense(d_layer_2_all, 1, activation=None, name='f3_att', reuse=tf.AUTO_REUSE)
+    d_layer_3_all = tf.reshape(d_layer_3_all, [-1, 1, tf.shape(keys)[1]])
+    outputs = d_layer_3_all 
 
-  # Scale
-  outputs = outputs / (keys.get_shape().as_list()[-1] ** 0.5)
+    # Mask
+    key_masks = tf.sequence_mask(keys_length, tf.shape(keys)[1])   # [B, T]
+    key_masks = tf.expand_dims(key_masks, 1) # [B, 1, T]
+    paddings = tf.ones_like(outputs) * (-2 ** 32 + 1)
+    outputs = tf.where(key_masks, outputs, paddings)  # [B, 1, T]
 
-  # Activation
-  outputs = tf.nn.softmax(outputs)  # [B, 1, T]
+    # Scale
+    outputs = outputs / (keys.get_shape().as_list()[-1] ** 0.5)
 
-  # Weighted sum
-  outputs = tf.matmul(outputs, keys)  # [B, 1, H]
+    # Activation
+    outputs = tf.nn.softmax(outputs)  # [B, 1, T]
 
-  return outputs
+    # Weighted sum
+    outputs = tf.matmul(outputs, keys)  # [B, 1, H]
+
+    return outputs
 
 def attention_multi_items(queries, keys, keys_length):
-  '''
-    queries:     [B, N, H] N is the number of ads
-    keys:        [B, T, H] 
-    keys_length: [B]
-  '''
-  queries_hidden_units = queries.get_shape().as_list()[-1]
-  queries_nums = queries.get_shape().as_list()[1]
-  queries = tf.tile(queries, [1, 1, tf.shape(keys)[1]])
-  queries = tf.reshape(queries, [-1, queries_nums, tf.shape(keys)[1], queries_hidden_units]) # shape : [B, N, T, H]
-  max_len = tf.shape(keys)[1]
-  keys = tf.tile(keys, [1, queries_nums, 1])
-  keys = tf.reshape(keys, [-1, queries_nums, max_len, queries_hidden_units]) # shape : [B, N, T, H]
-  din_all = tf.concat([queries, keys, queries-keys, queries*keys], axis=-1)
-  d_layer_1_all = tf.layers.dense(din_all, 80, activation=tf.nn.sigmoid, name='f1_att', reuse=tf.AUTO_REUSE)
-  d_layer_2_all = tf.layers.dense(d_layer_1_all, 40, activation=tf.nn.sigmoid, name='f2_att', reuse=tf.AUTO_REUSE)
-  d_layer_3_all = tf.layers.dense(d_layer_2_all, 1, activation=None, name='f3_att', reuse=tf.AUTO_REUSE)
-  d_layer_3_all = tf.reshape(d_layer_3_all, [-1, queries_nums, 1, max_len])
-  outputs = d_layer_3_all 
-  # Mask
-  key_masks = tf.sequence_mask(keys_length, max_len)   # [B, T]
-  key_masks = tf.tile(key_masks, [1, queries_nums])
-  key_masks = tf.reshape(key_masks, [-1, queries_nums, 1, max_len]) # shape : [B, N, 1, T]
-  paddings = tf.ones_like(outputs) * (-2 ** 32 + 1)
-  outputs = tf.where(key_masks, outputs, paddings)  # [B, N, 1, T]
+    '''
+      queries:     [B, N, H] N is the number of ads
+      keys:        [B, T, H] 
+      keys_length: [B]
+    '''
+    queries_hidden_units = queries.get_shape().as_list()[-1]
+    queries_nums = queries.get_shape().as_list()[1]
+    queries = tf.tile(queries, [1, 1, tf.shape(keys)[1]])
+    queries = tf.reshape(queries, [-1, queries_nums, tf.shape(keys)[1], queries_hidden_units]) # shape : [B, N, T, H]
+    max_len = tf.shape(keys)[1]
+    keys = tf.tile(keys, [1, queries_nums, 1])
+    keys = tf.reshape(keys, [-1, queries_nums, max_len, queries_hidden_units]) # shape : [B, N, T, H]
+    din_all = tf.concat([queries, keys, queries-keys, queries*keys], axis=-1)
+    d_layer_1_all = tf.layers.dense(din_all, 80, activation=tf.nn.sigmoid, name='f1_att', reuse=tf.AUTO_REUSE)
+    d_layer_2_all = tf.layers.dense(d_layer_1_all, 40, activation=tf.nn.sigmoid, name='f2_att', reuse=tf.AUTO_REUSE)
+    d_layer_3_all = tf.layers.dense(d_layer_2_all, 1, activation=None, name='f3_att', reuse=tf.AUTO_REUSE)
+    d_layer_3_all = tf.reshape(d_layer_3_all, [-1, queries_nums, 1, max_len])
+    outputs = d_layer_3_all 
+    # Mask
+    key_masks = tf.sequence_mask(keys_length, max_len)   # [B, T]
+    key_masks = tf.tile(key_masks, [1, queries_nums])
+    key_masks = tf.reshape(key_masks, [-1, queries_nums, 1, max_len]) # shape : [B, N, 1, T]
+    paddings = tf.ones_like(outputs) * (-2 ** 32 + 1)
+    outputs = tf.where(key_masks, outputs, paddings)  # [B, N, 1, T]
 
-  # Scale
-  outputs = outputs / (keys.get_shape().as_list()[-1] ** 0.5)
+    # Scale
+    outputs = outputs / (keys.get_shape().as_list()[-1] ** 0.5)
 
-  # Activation
-  outputs = tf.nn.softmax(outputs)  # [B, N, 1, T]
-  outputs = tf.reshape(outputs, [-1, 1, max_len])
-  keys = tf.reshape(keys, [-1, max_len, queries_hidden_units])
-  #print outputs.get_shape().as_list()
-  #print keys.get_sahpe().as_list()
-  # Weighted sum
-  outputs = tf.matmul(outputs, keys)
-  outputs = tf.reshape(outputs, [-1, queries_nums, queries_hidden_units])  # [B, N, 1, H]
-  print outputs.get_shape().as_list()
-  return outputs
+    # Activation
+    outputs = tf.nn.softmax(outputs)  # [B, N, 1, T]
+    outputs = tf.reshape(outputs, [-1, 1, max_len])
+    keys = tf.reshape(keys, [-1, max_len, queries_hidden_units])
+    #print outputs.get_shape().as_list()
+    #print keys.get_sahpe().as_list()
+    # Weighted sum
+    outputs = tf.matmul(outputs, keys)
+    outputs = tf.reshape(outputs, [-1, queries_nums, queries_hidden_units])  # [B, N, 1, H]
+    print outputs.get_shape().as_list()
+    return outputs
