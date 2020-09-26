@@ -18,11 +18,11 @@ with open('../raw_data/meta.pkl', 'rb') as f:
 
 
 def build_map(df, col_name):
-    """[summary]
+    """[建立映射]
 
     Args:
         df ([df]): [dataframe]
-        col_name ([string]): [列明]
+        col_name ([string]): [列名]
 
     Returns:
         [df]: [该列经过编码后的结果]

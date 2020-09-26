@@ -13,7 +13,9 @@ class Model(object):
             cate_list ([list]): category 列表
         """
         self.u = tf.placeholder(tf.int32, [None, ])  # [B]
+        # 要预测的next click
         self.i = tf.placeholder(tf.int32, [None, ])  # [B]
+        # j 正确的next click
         self.j = tf.placeholder(tf.int32, [None, ])  # [B]
         self.y = tf.placeholder(tf.float32, [None, ])  # [B]
         self.hist_i = tf.placeholder(tf.int32, [None, None])  # [B, T]
@@ -73,6 +75,7 @@ class Model(object):
         mask = tf.tile(mask, [1, 1, tf.shape(h_emb)[2]])  # [B, T, H]
         h_emb *= mask  # [B, T, H]
         hist = h_emb
+        # 加权求和
         hist = tf.reduce_sum(hist, 1)
         hist = tf.div(hist, tf.cast(tf.tile(tf.expand_dims(self.sl, 1), [1, 128]), tf.float32))
         print(h_emb.get_shape().as_list())
@@ -88,16 +91,24 @@ class Model(object):
         # Fully Convolutional Networks
         din_i = tf.concat([u_emb, i_emb], axis=-1)
         din_i = tf.layers.batch_normalization(inputs=din_i, name='b1')
+        # 全连接网络
+        # 第1层 80
         d_layer_1_i = tf.layers.dense(din_i, 80, activation=tf.nn.sigmoid, name='f1')
+        # 第2层 40
         d_layer_2_i = tf.layers.dense(d_layer_1_i, 40, activation=tf.nn.sigmoid, name='f2')
+        # 输出预测结果
         d_layer_3_i = tf.layers.dense(d_layer_2_i, 1, activation=None, name='f3')
+        # 将user embedding和真实结果拼接起来
         din_j = tf.concat([u_emb, j_emb], axis=-1)
+        # batch normalization
         din_j = tf.layers.batch_normalization(inputs=din_j, name='b1', reuse=True)
+        # 这个再预测一遍
         d_layer_1_j = tf.layers.dense(din_j, 80, activation=tf.nn.sigmoid, name='f1', reuse=True)
         d_layer_2_j = tf.layers.dense(d_layer_1_j, 40, activation=tf.nn.sigmoid, name='f2', reuse=True)
         d_layer_3_j = tf.layers.dense(d_layer_2_j, 1, activation=None, name='f3', reuse=True)
         d_layer_3_i = tf.reshape(d_layer_3_i, [-1])
         d_layer_3_j = tf.reshape(d_layer_3_j, [-1])
+        # TODO 这个是什么含义
         x = i_b - j_b + d_layer_3_i - d_layer_3_j  # [B]
         self.logits = i_b + d_layer_3_i
         u_emb_all = tf.expand_dims(u_emb, 1)
@@ -216,18 +227,3 @@ class Model(object):
         """
         saver = tf.train.Saver()
         saver.restore(sess, save_path=path)
-
-    def extract_axis_1(data, ind):
-        """[summary]
-
-        Args:
-            data ([type]): [description]
-            ind ([type]): [description]
-
-        Returns:
-            [type]: [description]
-        """
-        batch_range = tf.range(tf.shape(data)[0])
-        indices = tf.stack([batch_range, ind], axis=1)
-        res = tf.gather_nd(data, indices)
-        return res
